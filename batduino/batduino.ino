@@ -27,6 +27,9 @@
 //and the MP3 Shield Library
 #include <SFEMP3Shield.h>
 
+#include <PinChangeInt.h>
+#include <avr/sleep.h>
+
 // Below is not needed if interrupt driven. Safe to remove if not using.
 #if defined(USE_MP3_REFILL_MEANS) && USE_MP3_REFILL_MEANS == USE_MP3_Timer1
   #include <TimerOne.h>
@@ -41,6 +44,7 @@
  */
 SdFat sd;
 const int buttonPin = 5;
+const int transPin = 10;
 int buttonState = 0;
 /**
  * \brief Object instancing the SFEMP3Shield library.
@@ -50,6 +54,37 @@ int buttonState = 0;
 SFEMP3Shield MP3player;
 
 //------------------------------------------------------------------------------
+
+void play()
+{
+  digitalWrite(transPin, HIGH);
+  Serial.println("TEST");
+    buttonState = digitalRead(buttonPin);
+  if (buttonState == HIGH) {
+  
+      Serial.println("Begin");
+      uint8_t result; // result code from some function as to be tested at later time.
+      MP3player.setVolume(2, 2); // commit new volume
+    #if USE_MULTIPLE_CARDS
+        sd.chvol(); // assign desired sdcard's volume.
+    #endif
+        //tell the MP3 Shield to play a track
+        result = MP3player.playTrack(1);
+    
+        //check result, see readme for error codes.
+        if(result != 0) {
+          Serial.print(F("Error code: "));
+          Serial.print(result);
+          Serial.println(F(" when trying to play track"));
+        } else {
+    
+          Serial.println(F("Playing:"));
+        }
+    
+        delay(2000);
+      }
+}
+
 /**
  * \brief Setup the Arduino Chip's feature for our use.
  *
@@ -70,7 +105,8 @@ void setup() {
   Serial.begin(115200);
 
   pinMode(buttonPin, INPUT);
-
+  PCintPort::attachInterrupt(buttonPin, play, RISING);
+  
   //Initialize the SdCard.
   if(!sd.begin(SD_SEL, SPI_FULL_SPEED)) sd.initErrorHalt();
   // depending upon your SdCard environment, SPI_HAVE_SPEED may work better.
@@ -115,33 +151,19 @@ void setup() {
  * the parse_menu() function.
  */
 void loop() {
-
-  buttonState = digitalRead(buttonPin);
-  if (buttonState == HIGH) {
-  
-      Serial.println("Begin");
-      uint8_t result; // result code from some function as to be tested at later time.
-      MP3player.setVolume(2, 2); // commit new volume
-    #if USE_MULTIPLE_CARDS
-        sd.chvol(); // assign desired sdcard's volume.
-    #endif
-        //tell the MP3 Shield to play a track
-        result = MP3player.playTrack(1);
-    
-        //check result, see readme for error codes.
-        if(result != 0) {
-          Serial.print(F("Error code: "));
-          Serial.print(result);
-          Serial.println(F(" when trying to play track"));
-        } else {
-    
-          Serial.println(F("Playing:"));
-        }
-    
-        delay(2000);
-      }
+ sleep();
 }
 
+void sleep(){
+  Serial.println("SLEEPING");
+  digitalWrite(transPin, LOW);
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  sleep_enable();
+  sleep_cpu();
+  //RESTART FROM HERE
+  sleep_disable();
+  
+}
 
 
 
