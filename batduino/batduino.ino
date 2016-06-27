@@ -40,7 +40,8 @@
  * principal object for handling all SdCard functions.
  */
 SdFat sd;
-
+const int buttonPin = 5;
+int buttonState = 0;
 /**
  * \brief Object instancing the SFEMP3Shield library.
  *
@@ -68,6 +69,7 @@ void setup() {
 
   Serial.begin(115200);
 
+  pinMode(buttonPin, INPUT);
 
   //Initialize the SdCard.
   if(!sd.begin(SD_SEL, SPI_FULL_SPEED)) sd.initErrorHalt();
@@ -114,53 +116,32 @@ void setup() {
  */
 void loop() {
 
-// Below is only needed if not interrupt driven. Safe to remove if not using.
-#if defined(USE_MP3_REFILL_MEANS) \
-    && ( (USE_MP3_REFILL_MEANS == USE_MP3_SimpleTimer) \
-    ||   (USE_MP3_REFILL_MEANS == USE_MP3_Polled)      )
-
-  MP3player.available();
-#endif
-
-  parse_menu(); // get command from serial input
-
-  delay(100);
+  buttonState = digitalRead(buttonPin);
+  if (buttonState == HIGH) {
+  
+      Serial.println("Begin");
+      uint8_t result; // result code from some function as to be tested at later time.
+      MP3player.setVolume(2, 2); // commit new volume
+    #if USE_MULTIPLE_CARDS
+        sd.chvol(); // assign desired sdcard's volume.
+    #endif
+        //tell the MP3 Shield to play a track
+        result = MP3player.playTrack(1);
+    
+        //check result, see readme for error codes.
+        if(result != 0) {
+          Serial.print(F("Error code: "));
+          Serial.print(result);
+          Serial.println(F(" when trying to play track"));
+        } else {
+    
+          Serial.println(F("Playing:"));
+        }
+    
+        delay(2000);
+      }
 }
 
-uint32_t  millis_prv;
-
-//------------------------------------------------------------------------------
-/**
- * \brief Decode the Menu.
- *
- * Parses through the characters of the users input, executing corresponding
- * MP3player library functions and features then displaying a brief menu and
- * prompting for next input command.
- */
-void parse_menu() {
-
-  Serial.println("Begin");
-  uint8_t result; // result code from some function as to be tested at later time.
-  MP3player.setVolume(2, 2); // commit new volume
-#if USE_MULTIPLE_CARDS
-    sd.chvol(); // assign desired sdcard's volume.
-#endif
-    //tell the MP3 Shield to play a track
-    result = MP3player.playTrack(1);
-
-    //check result, see readme for error codes.
-    if(result != 0) {
-      Serial.print(F("Error code: "));
-      Serial.print(result);
-      Serial.println(F(" when trying to play track"));
-    } else {
-
-      Serial.println(F("Playing:"));
-    }
-
-    delay(2000);
-
-  } 
 
 
 
