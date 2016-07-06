@@ -14,7 +14,6 @@
 
 SdFat sd;
 const int buttonPin = 5;
-const int transPin = 10;
 int buttonState = 0;
 
 int analogue[6] = {14, 15, 16, 17, 18, 19};
@@ -26,7 +25,6 @@ SFEMP3Shield MP3player;
 void play()
 {
   int index = 0;
-  digitalWrite(transPin, HIGH);
   delay(100); // small delay to allow the circuitry to "wake up"
   buttonState = digitalRead(buttonPin);
   if (buttonState == HIGH) {
@@ -47,13 +45,11 @@ void setup() {
   int index = 0;
   //Serial.begin(115200);
 
-  digitalWrite(transPin, LOW);
   pinMode(buttonPin, INPUT);
   
   for (index = 0; index < 6; index++)
     pinMode(analogue[index], INPUT);
 
-  PCintPort::attachInterrupt(buttonPin, play, RISING);
 
   if(!sd.begin(SD_SEL, SPI_FULL_SPEED))
     sd.initErrorHalt();
@@ -66,14 +62,21 @@ void setup() {
 }
 
 void loop() {
-  digitalWrite(transPin, LOW);
-  sleep();
+  int index = 0;
+  // delay(100); // small delay to allow the circuitry to "wake up"
+  buttonState = digitalRead(buttonPin);
+  if (buttonState == HIGH) {
+    // check the analogue inputs
+    for (index = 0; index < 6; index++) {
+      if (digitalRead(analogue[index]) == HIGH) {
+        MP3player.setVolume(2, 2); // commit new volume
+        MP3player.playTrack(index + 1);
+        while (MP3player.isPlaying() != 0)
+          delay(50);
+        break;
+      }
+    }
+  }
 }
 
-void sleep(){
-  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-  sleep_enable();
-  sleep_cpu();
-  sleep_disable();
-}
 
