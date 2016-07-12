@@ -1,99 +1,119 @@
-
+// include SPI, MP3 and SD libraries
 #include <SPI.h>
+#include <Adafruit_VS1053.h>
+#include <SD.h>
 
-//Add the SdFat Libraries
-#include <SdFat.h>
-#include <SdFatUtil.h>
+// define the pins used
+//#define CLK 13       // SPI Clock, shared with SD card
+//#define MISO 12      // Input data, from VS1053/SD card
+//#define MOSI 11      // Output data, to VS1053/SD card
+// Connect CLK, MISO and MOSI to hardware SPI pins. 
+// See http://arduino.cc/en/Reference/SPI "Connections"
 
-//and the MP3 Shield Library
-#include <SFEMP3Shield.h>
+// These are the pins used for the breakout example
+#define BREAKOUT_RESET  9      // VS1053 reset pin (output)
+#define BREAKOUT_CS     10     // VS1053 chip select pin (output)
+#define BREAKOUT_DCS    8      // VS1053 Data/command select pin (output)
+// These are the pins used for the music maker shield
+#define SHIELD_RESET  -1      // VS1053 reset pin (unused!)
+#define SHIELD_CS     7      // VS1053 chip select pin (output)
+#define SHIELD_DCS    6      // VS1053 Data/command select pin (output)
 
-//sleep libraries
-#include <PinChangeInt.h>
-#include <avr/sleep.h>
+// These are common pins between breakout and shield
+#define CARDCS 4     // Card chip select pin
+// DREQ should be an Int pin, see http://arduino.cc/en/Reference/attachInterrupt
+#define DREQ 3       // VS1053 Data request, ideally an Interrupt pin
 
-SdFat sd;
+Adafruit_VS1053_FilePlayer musicPlayer = 
+  // create breakout-example object!
+  Adafruit_VS1053_FilePlayer(BREAKOUT_RESET, BREAKOUT_CS, BREAKOUT_DCS, DREQ, CARDCS);
+
+
 const int buttonPin = 5;
-const int frequencyPin = 4;
+const int frequencyPin = 2;
 const int errorLED = 13;
+
+char name_str[12][30] = {"Noctula.wav", "Brown_long_eared.wav", "Common_pip.wav", "Barbastelle.wav",
+    "Serotine.wav", "Soprano_pip.wav", "track007.wav", "track008.wav", "track009.wav",
+    "track010.wav", "track011.wav", "track012.wav"};
+char wav_str[20] = ".mp3";
+
 int buttonState = 0;
 int freq = 0;
+int right_ultra = 40;
+int left_audible = 0;
 
 int analogue[6] = {14, 15, 16, 17, 18, 19};
 
-SFEMP3Shield MP3player;
+
+
+
 
 //------------------------------------------------------------------------------
 
 
 void setup() { 
   int index = 0;
-  uint8_t result; //result code from some function as to be tested at later time.
   
   Serial.begin(115200);
-  //digitalWrite(frequencyPin, LOW);
   pinMode(errorLED, OUTPUT);
   pinMode(buttonPin, INPUT);
   pinMode(frequencyPin, INPUT);
   
-  digitalWrite(errorLED, HIGH);
-  delay(3000);
+  digitalWrite(errorLED, LOW);
+  delay(1000);
 
-  Serial.println("Begin");
-  //digitalWrite(errorLED, HIGH);
+  while (! musicPlayer.begin()) { // initialise the music player
+     Serial.println(F("Couldn't find VS1053, do you have the right pins defined?"));
+     //while (1);
+     digitalWrite(errorLED, HIGH);
+  }
+  Serial.println(F("VS1053 found"));
+
+  SD.begin(CARDCS);    // initialise the SD card
 
   for (index = 0; index < 6; index++)
     pinMode(analogue[index], INPUT);
 
+  // Set volume for left, right channels. lower numbers == louder volume!
+  musicPlayer.setVolume(40,100);
+  
 
-  if(!sd.begin(SD_SEL, SPI_FULL_SPEED)) {
-    sd.initErrorHalt();
-    Serial.println("Error_1");
-    //digitalWrite(errorLED, HIGH);
-    
-  }
-    
-  if(!sd.chdir("/")) {
-    sd.errorHalt("sd.chdir");
-    Serial.println("Error_2");
-    //digitalWrite(errorLED, HIGH);
-  }
-  delay(100);
-  result = MP3player.begin();
-
-  if(result != 0) {
-    Serial.print(F("Error code: "));
-    Serial.println(result);
-  }
 }
 
 void loop() {
+  int result; //result code from some function as to be tested at later time.
   int index = 0;
   // delay(100); // small delay to allow the circuitry to "wake up"
   buttonState = digitalRead(buttonPin);
 
   
-  if (digitalRead(frequencyPin) == HIGH)
-    freq = 4;
-  else
-    freq = 0;
-
+  if (digitalRead(frequencyPin) == HIGH) {
+    //Serial.println("Ultrasounds");
+    //freq = 6;
+    right_ultra = 0;
+    left_audible = 200;
+  }
+  else if (digitalRead(frequencyPin) == LOW) {
+    //Serial.println("Audible sounds");
+    //freq = 0;
+    right_ultra = 200;
+    left_audible = 40;
+  }
+    
+  musicPlayer.setVolume(left_audible,right_ultra);
 
   if (buttonState == HIGH) {
     Serial.println("Button_pressed");
     // check the analogue inputs
     for (index = 0; index < 6; index++) {
       if (digitalRead(analogue[index]) == HIGH) {
-        MP3player.setVolume(2, 2); // commit new volume
-        uint8_t result = MP3player.playTrack(index + 1 + freq);
-        if(result != 0) {
-          Serial.print(F("Error code: "));
-          Serial.print(result);
-          Serial.println(F(" when trying to play track"));
+           Serial.println(name_str[index]);
+           if (musicPlayer.stopped()) {
+             result = musicPlayer.playFullFile(name_str[index]);
+              Serial.println(result);
+            // File is playing in the background
         }
-        
-        while (MP3player.isPlaying() != 0)
-          delay(50);
         break;
       }
     }
